@@ -1,0 +1,17 @@
+# Environnement virtuel : il contient des bibliothèques installées pour TON
+# ordinateur, l'image installe les siennes depuis requirements.txt.
+.venv/
+
+# Fichiers temporaires de Python et de pytest
+__pycache__/
+.pytest_cache/
+
+# Historique Git : inutile dans l'image, et parfois lourd
+.git/
+
+# Secrets : ils ne doivent JAMAIS se retrouver dans une image
+.env
+
+# Ancienne base SQLite et tests : inutiles pour faire tourner l'API
+taches.db
+tests/

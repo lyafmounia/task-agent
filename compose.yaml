@@ -1,0 +1,59 @@
+# Liste des conteneurs (appelés "services") qui composent l'application.
+services:
+
+  # --- Service 1 : la base de données ---
+  mongo:
+    # Même image que ton conteneur mongo-taches 
+    image: mongo:7.0
+
+    # Variables d'environnement lues par l'image MongoDB au PREMIER démarrage
+    # pour créer un administrateur. ${MONGO_USER} est remplacé par la valeur
+    # définie dans le fichier .env.
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+
+    # Volume nommé pour que les données survivent à la suppression du
+    # conteneur (déclaré tout en bas du fichier).
+    volumes:
+      - mongo-compose-data:/data/db
+
+    # Test de santé : toutes les 5 secondes, on vérifie que MongoDB répond
+    # à un "ping". Le service n'est considéré "en bonne santé" qu'une fois
+    # ce test réussi.
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    # Pas de section "ports" : MongoDB n'est PAS accessible depuis l'extérieur,
+    # seulement par les autres conteneurs du projet. C'est plus sûr, et ça
+    # évite le conflit avec le port 27017 de mongo-taches.
+
+  # --- Service 2 : ton API ---
+  api:
+    # Construire l'image à partir du Dockerfile du dossier courant (".").
+    build: .
+
+    # Relier le port 8000 de ton ordinateur au port 8000 du conteneur,
+    # comme l'option -p de docker run.
+    ports:
+      - "8000:8000"
+
+    # Les variables lues par main.py avec os.getenv().
+    # "mongo" dans l'adresse est le NOM DU SERVICE ci-dessus : c'est ainsi
+    # que les conteneurs se trouvent sur le réseau créé par compose.
+    environment:
+      MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
+      MONGODB_DB: task_agent
+
+    # Ne démarrer l'API qu'une fois MongoDB en bonne santé, pour éviter
+    # qu'elle n'essaie de se connecter à une base pas encore prête.
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+# Déclaration des volumes nommés utilisés plus haut.
+volumes:
+  mongo-compose-data:
