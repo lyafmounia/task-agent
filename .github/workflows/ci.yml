@@ -1,0 +1,67 @@
+# Nom du workflow, affiché dans l'onglet "Actions" de GitHub.
+name: CI
+
+# Déclencheurs : quand le workflow doit-il s'exécuter ?
+on:
+  # À chaque push sur la branche main...
+  push:
+    branches: [main]
+  # ...et à chaque pull request (proposition de modification).
+  pull_request:
+
+# Les "jobs" sont les grandes tâches du workflow.
+jobs:
+
+  # --- Job 1 : lancer les tests ---
+  tests:
+    runs-on: ubuntu-latest
+
+    # Conteneurs lancés À CÔTÉ du job pendant toute sa durée.
+    # On démarre un MongoDB, comme ton conteneur mongo-taches.
+    services:
+      mongo:
+        image: mongo:7.0
+        # Port 27017 de la machine relié à celui du conteneur : les tests
+        # le trouveront à l'adresse localhost:27017, comme sur notre ordinateur.
+        ports:
+          - 27017:27017
+
+    # Les étapes du job, exécutées dans l'ordre. Si une étape échoue,
+    # les suivantes ne sont pas exécutées et le job est marqué en échec.
+    steps:
+      # Récupérer le code du dépôt sur la machine virtuelle.
+      # "uses" utilise une action toute faite, publiée par GitHub.
+      - name: Récupérer le code
+        uses: actions/checkout@v5
+
+      # Installer la même version de Python que sur ton ordinateur.
+      - name: Installer Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      # "run" exécute une commande shell, comme dans ton terminal.
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      # Lancer les tests. Si un seul échoue, pytest renvoie une erreur
+      # et tout le workflow est marqué en échec (croix rouge).
+      - name: Lancer les tests
+        run: pytest -v
+
+  # --- Job 2 : vérifier que l'image Docker se construit ---
+  docker:
+    runs-on: ubuntu-latest
+
+    # Ce job attend que "tests" soit réussi. S'il a échoué, inutile
+    # de construire l'image d'un code cassé.
+    needs: tests
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v5
+
+      # Construire l'image à partir du Dockerfile, en lui donnant
+      # le nom "task-agent" (-t pour "tag").
+      - name: Construire l'image Docker
+        run: docker build -t task-agent .
