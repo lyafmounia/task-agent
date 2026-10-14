@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+# Métadonnée standard indiquant où se trouve le code source de l'image.
+# GitHub s'en sert pour relier le paquet publié au dépôt.
+LABEL org.opencontainers.image.source=https://github.com/lyafmounia/task-agent
+
 # Dossier de travail à l'intérieur de l'image : toutes les commandes
 # suivantes s'exécutent dans /app (il est créé s'il n'existe pas).
 WORKDIR /app

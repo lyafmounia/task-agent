@@ -53,15 +53,42 @@ jobs:
   docker:
     runs-on: ubuntu-latest
 
-    # Ce job attend que "tests" soit réussi. S'il a échoué, inutile
-    # de construire l'image d'un code cassé.
     needs: tests
+
+    # Droits accordés au jeton GITHUB_TOKEN pour ce job :
+    # lire le code du dépôt, et écrire dans le registre d'images ("packages").
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v5
 
-      # Construire l'image à partir du Dockerfile, en lui donnant
-      # le nom "task-agent" (-t pour "tag").
+      # les noms d'images Docker doivent
+      # être en minuscules : on convertit avec la commande "tr".
+      # On range le résultat dans la variable IMAGE, réutilisable dans
+      # les étapes suivantes grâce au fichier spécial $GITHUB_ENV.
+      - name: Définir le nom de l'image
+        run: echo "IMAGE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      # Construire l'image avec DEUX tags (étiquettes) :
+      # - "latest" : toujours la version la plus récente ;
+      # - l'identifiant du commit (github.sha) : une version précise et
+      #   définitive, qui permet de savoir exactement quel code tourne,
+      #   et de revenir à une version antérieure en cas de problème.
       - name: Construire l'image Docker
-        run: docker build -t task-agent .
+        run: docker build -t "$IMAGE:latest" -t "$IMAGE:${{ github.sha }}" .
+
+      # Se connecter au registre de GitHub avec le jeton temporaire.
+      # Le "if" n'exécute cette étape que pour un push (pas une pull request).
+      # --password-stdin lit le mot de passe depuis l'entrée standard,
+      # pour qu'il n'apparaisse jamais en clair dans la commande.
+      - name: Se connecter au registre
+        if: github.event_name == 'push'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Envoyer l'image dans le registre, avec tous ses tags.
+      - name: Publier l'image
+        if: github.event_name == 'push'
+        run: docker push --all-tags "$IMAGE"
