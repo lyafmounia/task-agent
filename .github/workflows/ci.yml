@@ -15,6 +15,10 @@ jobs:
     # Machine virtuelle fournie par GitHub, toute neuve à chaque exécution.
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: task-agent-api
+
     # Conteneurs lancés À CÔTÉ du job pendant toute sa durée.
     # On démarre un MongoDB, comme le conteneur mongo-taches.
     services:
@@ -94,7 +98,7 @@ jobs:
             TAGS="$TAGS -t $IMAGE:latest"
           fi
           # Construire l'image avec tous les tags rassemblés dans TAGS
-          docker build $TAGS .
+          docker build $TAGS task-agent-api
 
       # Se connecter au registre de GitHub avec le jeton temporaire.
       # Uniquement pour un push (sur main ou d'un tag), jamais pour une pull request.

@@ -34,7 +34,7 @@ services:
   # --- Service 2 : ton API ---
   api:
     # Construire l'image à partir du Dockerfile du dossier courant (".").
-    build: .
+    build: ./task-agent-api
 
     # Relier le port 8000 de ton ordinateur au port 8000 du conteneur,
     # comme l'option -p de docker run.
