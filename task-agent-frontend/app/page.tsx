@@ -2,8 +2,8 @@ import { Suspense } from "react";
 
 import { recupererTaches } from "@/lib/api";
 import { FormulaireTache } from "./_components/formulaire-tache";
-
-
+import { BoutonTerminer } from "./_components/bouton-terminer"
+import { BoutonSupprimer } from "./_components/bouton-supprimer";
 
 // Le composant de la page. "export default" indique à Next.js que c'est
 // LE composant à afficher pour cette adresse. Il est "async" : c'est un
@@ -23,6 +23,8 @@ async function ListeTaches() {
           // "key" est un identifiant unique, obligatoire dans une liste :
           <li key={tache._id}>
             {tache.terminee ? "✅" : "⬜"} {tache.title} (priorité {tache.priorite})
+            {!tache.terminee && <BoutonTerminer id={tache._id} />}
+            <BoutonSupprimer id={tache._id} />
             {tache.description && <p>{tache.description}</p>}
           </li>
         ))}

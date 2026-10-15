@@ -2,6 +2,8 @@
 // Server Action fonctionne même si le JavaScript du navigateur n'est
 // pas encore chargé. C'est ce qu'on appelle l'amélioration progressive.
 import { creerTache } from "../actions";
+import { BoutonEnvoi } from "./bouton-envoi";
+
 
 export function FormulaireTache() {
   return (
@@ -17,7 +19,7 @@ export function FormulaireTache() {
         <option value="3">Haute</option>
       </select>
 
-      <button type="submit">Ajouter</button>
+      <BoutonEnvoi texte="Ajouter" />
     </form>
   );
 }

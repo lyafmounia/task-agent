@@ -37,3 +37,38 @@ export async function creerTache(formData: FormData) {
   // Réafficher la page : la nouvelle tâche apparaît dans la liste.
   refresh();
 }
+
+const FORMAT_OBJECT_ID = /^[a-f0-9]{24}$/;
+
+export async function terminerTache(id: string) {
+    if (!FORMAT_OBJECT_ID.test(id)) {
+        throw new Error("Identifiant de tâche invalide.");
+    }
+
+    const reponse = await fetch(`${API_URL}/taches/${id}/terminer`, {
+        method: "PATCH",
+    });
+
+    if (!reponse.ok) {
+        throw new Error(`Erreur de l'API : ${reponse.status}`);
+    }
+
+    refresh();
+}
+
+export async function supprimerTache(id: string) {
+    if (!FORMAT_OBJECT_ID.test(id)) {
+        throw new Error("Identifiant de tâche invalide.");
+    }
+
+    const reponse = await fetch(`${API_URL}/taches/${id}`, {
+        method: "DELETE",
+    });
+
+    if (!reponse.ok) {
+        throw new Error(`Erreur de l'API : ${reponse.status}`);
+    }
+
+    refresh();
+
+}
