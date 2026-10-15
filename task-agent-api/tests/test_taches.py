@@ -35,7 +35,7 @@ def test_terminer_tache(client):
 
 def test_filtrer_taches_terminees(client):
     premiere = client.post("/taches", json={"title": "Tâche finie"})
-    client.post("/taches", json={"titre": "Tâche à faire"})
+    client.post("/taches", json={"title": "Tâche à faire"})
     client.patch(f"/taches/{premiere.json()['_id']}/terminer")
 
     reponse = client.get("/taches?terminee=true")
