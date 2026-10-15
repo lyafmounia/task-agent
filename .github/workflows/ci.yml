@@ -54,6 +54,7 @@ jobs:
 
   # --- Job 2 : construire l'image Docker, et la publier pour un push ---
   docker:
+
     runs-on: ubuntu-latest
 
     # Attendre que les tests soient réussis
@@ -113,3 +114,42 @@ jobs:
       - name: Publier l'image
         if: github.event_name == 'push'
         run: docker push --all-tags "$IMAGE"
+
+    # --- Job 3 : vérifier le frontend (lint + compilation) ---
+  
+  # --- Job 3 : vérifier le frontend (lint + compilation) ---
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: task-agent-frontend
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v5
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          # Version LTS (stable, maintenue sur le long terme).
+          node-version: 24
+          cache: npm
+          # Le lockfile qui sert de "clé" au cache : si son contenu change,
+          # le cache est renouvelé. Il faut indiquer son chemin, car il n'est
+          # pas à la racine du dépôt.
+          cache-dependency-path: task-agent-frontend/package-lock.json
+
+      # Installer exactement les versions du lockfile.
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Lancer ESLint. Le "--" transmet l'option qui suit à ESLint lui-même
+      # (et non à npm). --max-warnings=0 transforme tout avertissement en échec
+      - name: Vérifier le code (ESLint)
+        run: npm run lint -- --max-warnings=0
+
+      # Compiler le projet en mode production : détecte les erreurs
+      # TypeScript et les problèmes de pages.
+      - name: Compiler le frontend
+        run: npm run build
