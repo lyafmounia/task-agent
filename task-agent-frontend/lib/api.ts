@@ -7,14 +7,52 @@ export type Tache = {
     etiquettes: string[];
   };
   
-  // Adresse de l'API, lue dans .env.local.
   export const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
-  
+
+  // Appelle l'API FastAPI et vérifie la réponse.
+  // - chemin : la fin de l'adresse, par exemple "/taches" ;
+  // - options : la méthode, le corps, les en-têtes... (facultatif, d'où le "?").
+  // RequestInit est le type TypeScript qui décrit les options acceptées par fetch.
+  // Renvoie la réponse si tout va bien, lève une erreur explicite sinon.
+  export async function fetchApi(
+    path: string,
+    options?: RequestInit,
+  ): Promise<Response> {
+    // "...options" recopie toutes les options reçues dans ce nouvel objet
+    const reponse = await fetch(`${API_URL}${path}`, {
+      cache: "no-store",
+      ...options,
+    });
+
+    // Code entre 200 et 299 : tout va bien, on renvoie la réponse telle quelle.
+    if (reponse.ok) {
+      return reponse;
+    }
+
+    let detail = reponse.statusText;
+
+    try {
+      const body = await reponse.json();
+
+      if (typeof body.detail === "string") {
+        // Cas des HTTPException : {"detail": "Tâche introuvable"}
+        detail = body.detail;
+      } else if (Array.isArray(body.detail)) {
+        // Cas des erreurs 422 de Pydantic : {"detail": [{"msg": "..."}, ...]}
+        // On assemble tous les messages, séparés par des virgules.
+        detail = body.detail
+          .map((erreur: { msg: string }) => erreur.msg)
+          .join(", ");
+      }
+    } catch {
+      // Corps illisible : on garde le détail par défaut.
+    }
+
+    throw new Error(`Erreur de l'API (${reponse.status}) : ${detail}`);
+  }
+
   // Récupère toutes les tâches.
   export async function recupererTaches(): Promise<Tache[]> {
-    const reponse = await fetch(`${API_URL}/taches`, { cache: "no-store" });
-    if (!reponse.ok) {
-      throw new Error(`Erreur de l'API : ${reponse.status}`);
-    }
+    const reponse = await fetchApi("/taches");
     return reponse.json();
   }
