@@ -1,0 +1,14 @@
+# Dépendances installées sur ton ordinateur : l'image installe les siennes
+# avec "npm ci", à partir du lockfile.
+node_modules
+
+# Résultat de compilation local : l'image recompile elle-même.
+.next
+
+# Secrets et configuration locale : ne doivent jamais entrer dans une image.
+.env*.local
+
+# Fichiers sans utilité dans l'image
+.git
+Dockerfile
+.dockerignore
