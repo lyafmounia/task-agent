@@ -54,6 +54,26 @@ services:
       mongo:
         condition: service_healthy
 
+  # --- Service 3 : le frontend Next.js ---
+  frontend:
+    # Construire l'image à partir du Dockerfile du dossier du frontend.
+    build: ./task-agent-frontend
+
+    # Relier le port 3000 de ton ordinateur à celui du conteneur.
+    ports:
+      - "3000:3000"
+
+    # Adresse de l'API, lue par lib/api.ts via process.env.API_URL.
+    # "api" est le NOM DU SERVICE : sur le réseau créé par Compose, les
+    # conteneurs se trouvent par leur nom, exactement comme l'API trouve
+    # MongoDB à l'adresse "mongo".
+    environment:
+      API_URL: http://api:8000
+
+    # Démarrer le frontend après l'API.
+    depends_on:
+      - api
+
 # Déclaration des volumes nommés utilisés plus haut.
 volumes:
   mongo-compose-data:
