@@ -20,7 +20,7 @@ jobs:
     # Toutes les commandes "run" de ce job s'exécutent dans le dossier backend.
     defaults:
       run:
-        working-directory: backend
+        working-directory: task-agent-api
 
     # MongoDB lancé à côté du job, accessible sur localhost:27017.
     services:
