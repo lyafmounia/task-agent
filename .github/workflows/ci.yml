@@ -1,123 +1,50 @@
+# Nom du workflow, affiché dans l'onglet "Actions" de GitHub.
 name: CI
 
+# Déclencheurs : quand le workflow doit-il s'exécuter ?
 on:
   push:
+    # À chaque push sur la branche main...
     branches: [main]
+    # ...et à chaque push d'un tag Git qui commence par "v" (v1.0.0, v2.3.1...).
     tags: ["v*"]
-  # À chaque pull request (proposition de modification).
+  # À chaque pull request
   pull_request:
 
-# Les "jobs" sont les grandes tâches du workflow.
 jobs:
 
-  # --- Job 1 : lancer les tests ---
+  # --- Job 1 : tests du backend ---
   tests:
-    # Machine virtuelle fournie par GitHub, toute neuve à chaque exécution.
     runs-on: ubuntu-latest
 
+    # Toutes les commandes "run" de ce job s'exécutent dans le dossier backend.
     defaults:
       run:
         working-directory: task-agent-api
 
-    # Conteneurs lancés À CÔTÉ du job pendant toute sa durée.
-    # On démarre un MongoDB, comme le conteneur mongo-taches.
+    # MongoDB lancé à côté du job, accessible sur localhost:27017.
     services:
       mongo:
         image: mongo:7.0
-        # Port 27017 de la machine relié à celui du conteneur : les tests
-        # le trouveront à l'adresse localhost:27017, comme sur notre ordinateur.
         ports:
           - 27017:27017
 
-    # Les étapes du job, exécutées dans l'ordre. Si une étape échoue,
-    # les suivantes ne sont pas exécutées et le job est marqué en échec.
     steps:
-      # Récupérer le code du dépôt sur la machine virtuelle.
-      # "uses" utilise une action toute faite, publiée par GitHub.
       - name: Récupérer le code
         uses: actions/checkout@v5
 
-      # Installer la même version de Python que sur notre ordinateur.
       - name: Installer Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.14"
 
-      # "run" exécute une commande shell, comme dans le terminal.
       - name: Installer les dépendances
         run: pip install -r requirements.txt
 
-      # Lancer les tests. Si un seul échoue, pytest renvoie une erreur
-      # et tout le workflow est marqué en échec (croix rouge).
       - name: Lancer les tests
         run: pytest -v
 
-  # --- Job 2 : construire l'image Docker, et la publier pour un push ---
-  docker:
-
-    runs-on: ubuntu-latest
-
-    # Attendre que les tests soient réussis
-    needs: tests
-
-    # Droits accordés au jeton GITHUB_TOKEN pour ce job :
-    # lire le code du dépôt, et écrire dans le registre d'images ("packages").
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      # Chaque job tourne sur sa propre machine : il faut récupérer le code à nouveau.
-      - name: Récupérer le code
-        uses: actions/checkout@v5
-
-      # Préparer le nom de l'image et l'identifiant court du commit.
-      # Les variables écrites dans le fichier spécial $GITHUB_ENV restent
-      # disponibles pour toutes les étapes suivantes du job.
-      - name: Définir le nom de l'image
-        run: |
-          # Les noms d'images Docker doivent être en minuscules :
-          # on convertit avec la commande "tr".
-          IMAGE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-          # GITHUB_SHA contient l'identifiant complet du commit ;
-          # ${GITHUB_SHA::7} n'en garde que les 7 premiers caractères.
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
-
-      # Construire l'image avec les tags adaptés à la situation.
-      - name: Construire l'image Docker
-        run: |
-          # Toujours : le tag lisible du commit, par exemple "sha-3f9a2c1"
-          TAGS="-t $IMAGE:sha-$SHORT_SHA"
-          # github.ref_type vaut "tag" si le workflow a été déclenché par un tag Git,
-          # et "branch" sinon. github.ref_name contient alors le nom du tag (v1.0.0).
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            # Push d'un tag Git : on ajoute le numéro de version
-            TAGS="$TAGS -t $IMAGE:${{ github.ref_name }}"
-          else
-            # Push sur main : on met à jour "latest"
-            TAGS="$TAGS -t $IMAGE:latest"
-          fi
-          # Construire l'image avec tous les tags rassemblés dans TAGS
-          docker build $TAGS task-agent-api
-
-      # Se connecter au registre de GitHub avec le jeton temporaire.
-      # Uniquement pour un push (sur main ou d'un tag), jamais pour une pull request.
-      # --password-stdin lit le jeton depuis l'entrée standard, pour qu'il
-      # n'apparaisse jamais en clair dans la commande.
-      - name: Se connecter au registre
-        if: github.event_name == 'push'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      # Envoyer l'image dans le registre, avec tous les tags construits
-      # à l'étape précédente.
-      - name: Publier l'image
-        if: github.event_name == 'push'
-        run: docker push --all-tags "$IMAGE"
-
-    # --- Job 3 : vérifier le frontend (lint + compilation) ---
-  
-  # --- Job 3 : vérifier le frontend (lint + compilation) ---
+  # --- Job 2 : vérification du frontend (lint + compilation) ---
   frontend:
     runs-on: ubuntu-latest
 
@@ -132,24 +59,82 @@ jobs:
       - name: Installer Node.js
         uses: actions/setup-node@v7
         with:
-          # Version LTS (stable, maintenue sur le long terme).
           node-version: 24
           cache: npm
-          # Le lockfile qui sert de "clé" au cache : si son contenu change,
-          # le cache est renouvelé. Il faut indiquer son chemin, car il n'est
-          # pas à la racine du dépôt.
           cache-dependency-path: task-agent-frontend/package-lock.json
 
-      # Installer exactement les versions du lockfile.
       - name: Installer les dépendances
         run: npm ci
 
-      # Lancer ESLint. Le "--" transmet l'option qui suit à ESLint lui-même
-      # (et non à npm). --max-warnings=0 transforme tout avertissement en échec
       - name: Vérifier le code (ESLint)
         run: npm run lint -- --max-warnings=0
 
-      # Compiler le projet en mode production : détecte les erreurs
-      # TypeScript et les problèmes de pages.
       - name: Compiler le frontend
         run: npm run build
+
+  # --- Job 3 : construire les images Docker, et les publier pour un push ---
+  docker:
+    # Nom affiché dans l'onglet Actions : "docker (api)" et "docker (frontend)".
+    name: docker (${{ matrix.service }})
+    runs-on: ubuntu-latest
+
+    # Attendre que les DEUX vérifications soient réussies
+    needs: [tests, frontend]
+
+    # Matrice : GitHub lance ce job UNE FOIS PAR LIGNE de la liste "include",
+    # en parallèle. Dans chaque exécution, matrix.service et matrix.contexte
+    # prennent les valeurs de la ligne correspondante.
+    strategy:
+      matrix:
+        include:
+          - service: api                    # nom de l'image : task-agent-api
+            contexte: task-agent-api               # dossier contenant le Dockerfile
+          - service: frontend               # nom de l'image : task-agent-frontend
+            contexte: task-agent-frontend
+
+    # Droits du jeton GITHUB_TOKEN : lire le code, écrire dans le registre.
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v5
+
+      # Préparer le nom de l'image et l'identifiant court du commit.
+      # github.repository vaut "ton-utilisateur/task-agent" : en y ajoutant
+      # "-api" ou "-frontend", on obtient ghcr.io/ton-utilisateur/task-agent-api
+      # et ghcr.io/ton-utilisateur/task-agent-frontend.
+      - name: Définir le nom de l'image
+        run: |
+          # Les noms d'images Docker doivent être en minuscules.
+          IMAGE=$(echo "ghcr.io/${{ github.repository }}-${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          # Les 7 premiers caractères de l'identifiant du commit.
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      # Construire l'image avec les tags adaptés à la situation.
+      - name: Construire l'image Docker
+        run: |
+          # Toujours : le tag lisible du commit, par exemple "sha-3f9a2c1"
+          TAGS="-t $IMAGE:sha-$SHORT_SHA"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            # Push d'un tag Git : on ajoute le numéro de version
+            TAGS="$TAGS -t $IMAGE:${{ github.ref_name }}"
+          else
+            # Push sur main (ou pull request) : on met à jour "latest"
+            TAGS="$TAGS -t $IMAGE:latest"
+          fi
+          # Le dernier argument est le dossier de construction (le "contexte"),
+          # différent selon la ligne de la matrice.
+          docker build $TAGS ${{ matrix.contexte }}
+
+      # Se connecter au registre, uniquement pour un push
+      - name: Se connecter au registre
+        if: github.event_name == 'push'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Publier l'image avec tous ses tags.
+      - name: Publier l'image
+        if: github.event_name == 'push'
+        run: docker push --all-tags "$IMAGE"

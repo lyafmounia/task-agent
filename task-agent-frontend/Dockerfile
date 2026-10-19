@@ -1,5 +1,9 @@
 # ==================== Étape 1 : installer les dépendances ====================
 FROM node:24-alpine AS dependances
+
+# Métadonnée indiquant où se trouve le code source de l'image :
+# GitHub s'en sert pour relier le paquet publié au dépôt.
+LABEL org.opencontainers.image.source=https://github.com/lyafmounia/task-agent
 WORKDIR /app
 
 # Copier d'abord uniquement les fichiers de dépendances, pour profiter
