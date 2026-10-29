@@ -1,58 +1,65 @@
+const API_KEY = process.env.API_KEY ?? "cle-de-developpement";
+
 export type Tache = {
-    _id: string;
-    title: string;
-    description: string | null;
-    priorite: number;
-    terminee: boolean;
-    etiquettes: string[];
-  };
-  
-  export const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
+  _id: string;
+  title: string;
+  description: string | null;
+  priorite: number;
+  terminee: boolean;
+  etiquettes: string[];
+};
 
-  // Appelle l'API FastAPI et vérifie la réponse.
-  // - chemin : la fin de l'adresse, par exemple "/taches" ;
-  // - options : la méthode, le corps, les en-têtes... (facultatif, d'où le "?").
-  // RequestInit est le type TypeScript qui décrit les options acceptées par fetch.
-  // Renvoie la réponse si tout va bien, lève une erreur explicite sinon.
-  export async function fetchApi(
-    path: string,
-    options?: RequestInit,
-  ): Promise<Response> {
-    // "...options" recopie toutes les options reçues dans ce nouvel objet
-    const reponse = await fetch(`${API_URL}${path}`, {
-      cache: "no-store",
-      ...options,
-    });
+export const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
 
-    // Code entre 200 et 299 : tout va bien, on renvoie la réponse telle quelle.
-    if (reponse.ok) {
-      return reponse;
-    }
 
-    let detail = reponse.statusText;
+// Appelle l'API FastAPI et vérifie la réponse.
+// - chemin : la fin de l'adresse, par exemple "/taches" ;
+// - options : la méthode, le corps, les en-têtes... (facultatif, d'où le "?").
+// RequestInit est le type TypeScript qui décrit les options acceptées par fetch.
+// Renvoie la réponse si tout va bien, lève une erreur explicite sinon.
+export async function fetchApi(
+  path: string,
+  options?: RequestInit
+): Promise<Response> {
+  // "...options" recopie toutes les options reçues dans ce nouvel objet
+  const reponse = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
+    ...options,
+    headers: {
+      ...options?.headers,
+      "X-Api-Key": API_KEY,
+    },
+  });
 
-    try {
-      const body = await reponse.json();
-
-      if (typeof body.detail === "string") {
-        // Cas des HTTPException : {"detail": "Tâche introuvable"}
-        detail = body.detail;
-      } else if (Array.isArray(body.detail)) {
-        // Cas des erreurs 422 de Pydantic : {"detail": [{"msg": "..."}, ...]}
-        // On assemble tous les messages, séparés par des virgules.
-        detail = body.detail
-          .map((erreur: { msg: string }) => erreur.msg)
-          .join(", ");
-      }
-    } catch {
-      // Corps illisible : on garde le détail par défaut.
-    }
-
-    throw new Error(`Erreur de l'API (${reponse.status}) : ${detail}`);
+  // Code entre 200 et 299 : tout va bien, on renvoie la réponse telle quelle.
+  if (reponse.ok) {
+    return reponse;
   }
 
-  // Récupère toutes les tâches.
-  export async function recupererTaches(): Promise<Tache[]> {
-    const reponse = await fetchApi("/taches");
-    return reponse.json();
+  let detail = reponse.statusText;
+
+  try {
+    const body = await reponse.json();
+
+    if (typeof body.detail === "string") {
+      // Cas des HTTPException : {"detail": "Tâche introuvable"}
+      detail = body.detail;
+    } else if (Array.isArray(body.detail)) {
+      // Cas des erreurs 422 de Pydantic : {"detail": [{"msg": "..."}, ...]}
+      // On assemble tous les messages, séparés par des virgules.
+      detail = body.detail
+        .map((erreur: { msg: string }) => erreur.msg)
+        .join(", ");
+    }
+  } catch {
+    // Corps illisible : on garde le détail par défaut.
   }
+
+  throw new Error(`Erreur de l'API (${reponse.status}) : ${detail}`);
+}
+
+// Récupère toutes les tâches.
+export async function recupererTaches(): Promise<Tache[]> {
+  const reponse = await fetchApi("/taches");
+  return reponse.json();
+}
