@@ -8,7 +8,7 @@ export function BoutonSupprimer({ id }: { id: string }) {
 
   return (
     <form action={supprimerCetteTache}>
-      <BoutonEnvoi texte="Supprimer" />
+      <BoutonEnvoi texte="Supprimer" variante="danger" />
     </form>
   );
 }
