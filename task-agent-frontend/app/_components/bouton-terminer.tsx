@@ -10,7 +10,7 @@ export function BoutonTerminer({ id }: { id: string }) {
 
   return (
     <form action={terminerCetteTache}>
-      <BoutonEnvoi texte="Terminer" />
+      <BoutonEnvoi texte="Terminer" variante="secondaire"/>
     </form>
   );
 }
