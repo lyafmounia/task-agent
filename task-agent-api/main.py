@@ -7,6 +7,7 @@ from pymongo import AsyncMongoClient
 import os
 import secrets
 from fastapi.security import APIKeyHeader
+from auth import Utilisateur, routeur as routeur_auth
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
@@ -47,7 +48,10 @@ en_tete_cle = APIKeyHeader(name="X-Api-Key", auto_error=False)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     client = AsyncMongoClient(MONGODB_URL)
-    await init_beanie(database=client[MONGODB_DB], document_models=[Tache])
+    await init_beanie(
+        database=client[MONGODB_DB],
+        document_models=[Tache, Utilisateur],
+    )
     yield
     await client.close()
 
@@ -70,6 +74,10 @@ app = FastAPI(
     redoc_url=None if EN_PRODUCTION else "/redoc",
     openapi_url=None if EN_PRODUCTION else "/openapi.json",
 )
+
+# Ajouter les routes /auth/... à l'application.
+# La dépendance globale verifier_cle s'applique aussi à elles.
+app.include_router(routeur_auth)
 
 @app.get("/")
 async def accueil():

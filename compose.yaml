@@ -50,6 +50,7 @@ services:
       API_KEY: ${API_KEY}
       # Désactive /docs dans ce mode
       APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
 
     # Ne démarrer l'API qu'une fois MongoDB en bonne santé, pour éviter
     # qu'elle n'essaie de se connecter à une base pas encore prête.
