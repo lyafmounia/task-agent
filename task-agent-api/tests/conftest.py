@@ -1,4 +1,5 @@
 import os
+from auth import limiteur
 
 os.environ["MONGODB_DB"] = "task_agent_test"
 
@@ -12,6 +13,7 @@ from main import app
 @pytest.fixture
 def client():
     MongoClient("mongodb://localhost:27017").drop_database("task_agent_test")
+    limiteur.reset()
     with TestClient(app, headers={"X-Api-Key": "cle-de-developpement"}) as c:
         yield c
 

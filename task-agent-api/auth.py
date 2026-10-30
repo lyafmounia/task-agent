@@ -9,6 +9,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt import InvalidTokenError
 from pwdlib import PasswordHash
 from pydantic import BaseModel, EmailStr, Field
+from fastapi import Request
+from slowapi import Limiter
 
 # Clé secrète qui signe les jetons. Valeur par défaut : développement uniquement
 JWT_SECRET = os.getenv("JWT_SECRET", "secret-de-developpement")
@@ -95,6 +97,28 @@ async def utilisateur_connecte(
     return utilisateur
 
 
+# ---------- Configuration ----------
+
+def adresse_visiteur(request: Request) -> str:
+    """Renvoie l'adresse IP du VRAI visiteur, qui sert de clé au compteur.
+
+    Le serveur Next.js transmet l'adresse du navigateur dans l'en-tête
+    X-Forwarded-For. On peut lui faire confiance, car seul Next.js
+    connaît la clé d'API exigée par toutes les routes.
+    """
+    transmise = request.headers.get("x-forwarded-for")
+    if transmise:
+        # L'en-tête peut contenir une liste d'adresses ("client, proxy1, ...") :
+        # la première est celle du client d'origine.
+        return transmise.split(",")[0].strip()
+    # Pas d'en-tête : on utilise l'adresse de l'appelant direct.
+    return request.client.host if request.client else "inconnue"
+
+
+# Le limiteur : il compte les requêtes par adresse de visiteur.
+# Les compteurs sont gardés EN MÉMOIRE : ils sont remis à zéro au redémarrage.
+limiteur = Limiter(key_func=adresse_visiteur)
+
 # ---------- Routes ----------
 
 # Toutes les routes de ce routeur commencent par /auth, et sont regroupées
@@ -102,7 +126,8 @@ async def utilisateur_connecte(
 routeur = APIRouter(prefix="/auth", tags=["auth"])
 
 @routeur.post("/inscription", status_code=201)
-async def inscription(donnees: Inscription) -> UtilisateurPublic:
+@limiteur.limit("3/minute") 
+async def inscription(request: Request, donnees: Inscription) -> UtilisateurPublic:
     # On normalise l'e-mail en minuscules : "Mounia@X.fr" et "mounia@x.fr"
     # désignent la même personne.
     email = donnees.email.lower()
@@ -121,7 +146,9 @@ async def inscription(donnees: Inscription) -> UtilisateurPublic:
     return vers_public(utilisateur)
 
 @routeur.post("/connexion")
+@limiteur.limit("5/minute") 
 async def connexion(
+    request: Request,
     # OAuth2PasswordRequestForm lit un FORMULAIRE (et non du JSON) avec les
     # champs "username" et "password" : c'est le format imposé par le
     # standard OAuth2. Ici, "username" contient l'e-mail.
