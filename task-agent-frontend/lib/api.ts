@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { lireJeton } from "./session";
+import { headers } from "next/headers";
 
 const API_KEY = process.env.API_KEY ?? "cle-de-developpement";
 
@@ -23,9 +24,13 @@ export async function fetchApi(
   path: string,
   options?: RequestInit
 ): Promise<Response> {
-
   // Le jeton de l'utilisateur connecté, s'il y en a un.
   const jeton = await lireJeton();
+
+  // L'adresse du visiteur, telle que Next.js l'a reçue. En développement, cet
+  // en-tête peut être absent : on ne transmet alors rien, et l'API utilisera
+  // l'adresse du serveur Next.js.
+  const adresseVisiteur = (await headers()).get("x-forwarded-for");
 
   // "...options" recopie toutes les options reçues dans ce nouvel objet
   const reponse = await fetch(`${API_URL}${path}`, {
@@ -36,6 +41,7 @@ export async function fetchApi(
       "X-Api-Key": API_KEY,
       // on ajoute authorization seulement si on a un jeton
       ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}),
+      ...(adresseVisiteur ? { "X-Forwarded-For": adresseVisiteur } : {}),
     },
   });
 

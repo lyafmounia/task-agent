@@ -82,5 +82,17 @@ def test_moi_jeton_falsifie(client):
     reponse = client.get(
         "/auth/moi", headers={"Authorization": "Bearer un.faux.jeton"}
     )
-
     assert reponse.status_code == 401
+
+def test_connexion_limitee(client):
+    inscrire(client)
+
+    # 5 tentatives avec un mauvais mot de passe : refusées (401),
+    # mais encore autorisées par le rate limiting.
+    for _ in range(5):
+        assert se_connecter(client, mot_de_passe="mauvais").status_code == 401
+
+    # La 6e tentative est bloquée, MÊME avec le bon mot de passe.
+    reponse = se_connecter(client)
+
+    assert reponse.status_code == 429

@@ -1,16 +1,17 @@
 from contextlib import asynccontextmanager
 
 from beanie import Document, PydanticObjectId, init_beanie
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Security, Request
 from pydantic import BaseModel, Field
 from pymongo import AsyncMongoClient
 import os
 import secrets
 from fastapi.security import APIKeyHeader
-from auth import Utilisateur, routeur as routeur_auth,  utilisateur_connecte
+from auth import Utilisateur, routeur as routeur_auth,  utilisateur_connecte, limiteur
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
-
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 # ---------- Modèles ----------
 
@@ -79,8 +80,21 @@ app = FastAPI(
     openapi_url=None if EN_PRODUCTION else "/openapi.json",
 )
 
-# Ajouter les routes /auth/... à l'application.
-# La dépendance globale verifier_cle s'applique aussi à elles.
+# SlowAPI retrouve le limiteur dans l'état de l'application
+app.state.limiter = limiteur
+
+# Quand une limite est dépassée, SlowAPI lève RateLimitExceeded
+# On la transforme en réponse 429, avec un champ "detail"
+# erreurs de l'API : fetchApi saura ainsi afficher le message
+@app.exception_handler(RateLimitExceeded)
+async def trop_de_requetes(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Trop de tentatives. Réessayez dans une minute."},
+    )
+
+# Ajouter les routes /auth/... à l'application
+# La dépendance globale verifier_cle s'applique aussi à elles
 app.include_router(routeur_auth)
 
 
