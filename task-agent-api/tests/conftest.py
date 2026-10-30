@@ -12,5 +12,5 @@ from main import app
 @pytest.fixture
 def client():
     MongoClient("mongodb://localhost:27017").drop_database("task_agent_test")
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-Api-Key": "cle-de-developpement"}) as c:
         yield c
