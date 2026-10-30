@@ -7,7 +7,7 @@ from pymongo import AsyncMongoClient
 import os
 import secrets
 from fastapi.security import APIKeyHeader
-from auth import Utilisateur, routeur as routeur_auth
+from auth import Utilisateur, routeur as routeur_auth,  utilisateur_connecte
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
@@ -22,10 +22,14 @@ class TacheCreation(BaseModel):
 
 class Tache(Document, TacheCreation):
     terminee: bool = False
+    utilisateur_id: PydanticObjectId
     class Settings:
         name = "taches"
         indexes = [
-            IndexModel([("terminee", ASCENDING), ("priorite", DESCENDING)]),
+            IndexModel([
+                ("utilisateur_id", ASCENDING),
+                ("terminee", ASCENDING),
+                ("priorite", DESCENDING)]),
         ]
 
 
@@ -79,28 +83,48 @@ app = FastAPI(
 # La dépendance globale verifier_cle s'applique aussi à elles.
 app.include_router(routeur_auth)
 
+
+async def tache_de(tache_id: PydanticObjectId, utilisateur: Utilisateur) -> Tache:
+    """Renvoie la tâche si elle appartient à l'utilisateur, sinon lève une 404."""
+    tache = await Tache.find_one(
+        Tache.id == tache_id,
+        Tache.utilisateur_id == utilisateur.id,
+    )
+    if tache is None:
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
+    return tache
+
+
 @app.get("/")
 async def accueil():
     return {"message": "Bienvenue sur Task Agent"}
 
 
 @app.post("/taches", status_code=201)
-async def creer_tache(donnees: TacheCreation) -> Tache:
-    tache = Tache(**donnees.model_dump())
+async def creer_tache(
+    donnees: TacheCreation,
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
+) -> Tache:
+    tache = Tache(**donnees.model_dump(), utilisateur_id=utilisateur.id)
     await tache.insert()
     return tache
 
 @app.get("/taches")
 async def lister_taches(
-    terminee: bool | None = None
+    terminee: bool | None = None,
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
 ) -> list[Tache]:
+    # La condition sur le propriétaire est TOUJOURS présente.
+    requete = Tache.find(Tache.utilisateur_id == utilisateur.id)
     if terminee is not None:
-        return await Tache.find(Tache.terminee == terminee).to_list()
-    return await Tache.find_all().to_list()
+        requete = requete.find(Tache.terminee == terminee)
+    return await requete.to_list()
 
 @app.get("/taches/statistiques")
 async def statistiques():
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
     pipeline = [
+        {"$match": {"utilisateur_id": utilisateur.id}},
         {"$group": {"_id": "$priorite", "nombre": {"$sum": 1}}},
         {"$sort": {"_id": 1}},
         {"$project": {"_id": 0, "priorite": "$_id", "nombre": 1}},
@@ -110,7 +134,9 @@ async def statistiques():
 
 @app.get("/taches/statistiques/etiquettes")
 async def statistiques():
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
     pipeline = [
+        {"$match": {"utilisateur_id": utilisateur.id}},
         {"$unwind": "$etiquette"},
         {"$group": {"_id": "$etiquette", "nombre": {"$sum": 1}}},
         {"$sort": {"_id": -1}},
@@ -120,28 +146,29 @@ async def statistiques():
 
 
 @app.get("/taches/{tache_id}")
-async def lire_tache(tache_id: PydanticObjectId) -> Tache:
-    tache = await Tache.get(tache_id)
-    if tache is None:
-        raise HTTPException(status_code=404, detail="Tâche introuvable")
-    return tache
-
+async def lire_tache(
+    tache_id: PydanticObjectId,
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
+) -> Tache:
+    return await tache_de(tache_id, utilisateur)
 
 
 @app.patch("/taches/{tache_id}/terminer")
-async def modifier_tache(tache_id: PydanticObjectId) -> Tache:
-    tache = await Tache.get(tache_id)
-    if tache is None:
-        raise HTTPException(status_code=404, detail="Tache introuvable")
+async def modifier_tache(
+    tache_id: PydanticObjectId,
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
+) -> Tache:
+    tache = await tache_de(tache_id, utilisateur)
     tache.terminee = True
     await tache.save()
     return tache
 
 
 @app.delete("/taches/{tache_id}", status_code=204)
-async def supprimer_tache(tache_id: PydanticObjectId):
-    tache = await Tache.get(tache_id)
-    if tache is None:
-        raise HTTPException(status_code=404, detail="Tâche introuvable")
+async def supprimer_tache(
+    tache_id: PydanticObjectId,
+    utilisateur: Utilisateur = Depends(utilisateur_connecte),
+):
+    tache = await tache_de(tache_id, utilisateur)
     await tache.delete()
 
