@@ -2,16 +2,29 @@ import { Suspense } from "react";
 
 import { recupererTaches } from "@/lib/api";
 import { FormulaireTache } from "./_components/formulaire-tache";
-import { BoutonTerminer } from "./_components/bouton-terminer"
+import { BoutonTerminer } from "./_components/bouton-terminer";
 import { BoutonSupprimer } from "./_components/bouton-supprimer";
 import { BoutonTheme } from "./_components/bouton-theme";
+import { BoutonEnvoi } from "./_components/bouton-envoi";
+import { deconnexion } from "./actions";
 
 // Libellé et couleurs de chaque niveau de priorité.
 // Record<number, ...> : un objet dont les clés sont des nombres (1, 2, 3).
 const PRIORITES: Record<number, { libelle: string; classes: string }> = {
-  1: { libelle: "Basse", classes: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" },
-  2: { libelle: "Moyenne", classes: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" },
-  3: { libelle: "Haute", classes: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
+  1: {
+    libelle: "Basse",
+    classes:
+      "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
+  },
+  2: {
+    libelle: "Moyenne",
+    classes:
+      "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  3: {
+    libelle: "Haute",
+    classes: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  },
 };
 
 // Le composant de la page. "export default" indique à Next.js que c'est
@@ -89,13 +102,23 @@ export default function Accueil() {
         <BoutonTheme />
       </header>
 
+      <form action={deconnexion}>
+        <BoutonEnvoi texte="Déconnexion" variante="secondaire" />
+      </form>
+      
       <div className="mb-8">
         <FormulaireTache />
       </div>
 
       {/* Partie dynamique : tant que ListeTaches attend l'API,
           on affiche le "fallback" à sa place. */}
-      <Suspense fallback={<p className="text-slate-500 dark:text-slate-400">Chargement des tâches…</p>}>
+      <Suspense
+        fallback={
+          <p className="text-slate-500 dark:text-slate-400">
+            Chargement des tâches…
+          </p>
+        }
+      >
         <ListeTaches />
       </Suspense>
     </main>

@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+import { lireJeton } from "./session";
+
 const API_KEY = process.env.API_KEY ?? "cle-de-developpement";
 
 export type Tache = {
@@ -11,7 +14,6 @@ export type Tache = {
 
 export const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
 
-
 // Appelle l'API FastAPI et vérifie la réponse.
 // - chemin : la fin de l'adresse, par exemple "/taches" ;
 // - options : la méthode, le corps, les en-têtes... (facultatif, d'où le "?").
@@ -21,6 +23,10 @@ export async function fetchApi(
   path: string,
   options?: RequestInit
 ): Promise<Response> {
+
+  // Le jeton de l'utilisateur connecté, s'il y en a un.
+  const jeton = await lireJeton();
+
   // "...options" recopie toutes les options reçues dans ce nouvel objet
   const reponse = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
@@ -28,9 +34,15 @@ export async function fetchApi(
     headers: {
       ...options?.headers,
       "X-Api-Key": API_KEY,
+      // on ajoute authorization seulement si on a un jeton
+      ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}),
     },
   });
 
+  if (reponse.status === 401 && !path.startsWith("/auth/")) {
+    // redirect() interrompt tout et envoie le navigateur vers /connexion.
+    redirect("/connexion");
+  }
   // Code entre 200 et 299 : tout va bien, on renvoie la réponse telle quelle.
   if (reponse.ok) {
     return reponse;
