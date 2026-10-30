@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 from beanie import Document, PydanticObjectId, init_beanie
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
 from pydantic import BaseModel, Field
 from pymongo import AsyncMongoClient
 import os
+import secrets
+from fastapi.security import APIKeyHeader
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
@@ -31,6 +33,17 @@ class Tache(Document, TacheCreation):
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 MONGODB_DB = os.getenv("MONGODB_DB", "task_agent")
 
+# Clé partagée entre le frontend et l'API.
+# La valeur par défaut ne sert QU'EN DÉVELOPPEMENT : en production, la vraie
+# clé est fournie par la variable d'environnement API_KEY (fichier .env).
+API_KEY = os.getenv("API_KEY", "cle-de-developpement")
+
+# Environnement : "development" par défaut, "production" dans Compose.
+APP_ENV = os.getenv("APP_ENV", "development")
+
+# auto_error=False : on gère nous-mêmes l'erreur, pour renvoyer un message clair.
+en_tete_cle = APIKeyHeader(name="X-Api-Key", auto_error=False)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     client = AsyncMongoClient(MONGODB_URL)
@@ -39,10 +52,24 @@ async def lifespan(app: FastAPI):
     await client.close()
 
 
+async def verifier_cle(cle: str | None = Security(en_tete_cle)):
+    """Dépendance : refuse la requête si la clé est absente ou incorrecte."""
+    if cle is None or not secrets.compare_digest(cle, API_KEY):
+        raise HTTPException(status_code=401, detail="Clé d'API invalide")
 
 # ---------- Application ----------
 
-app = FastAPI(title="Task Agent", lifespan=lifespan)
+# En production, on désactive les pages de documentation.
+EN_PRODUCTION = APP_ENV == "production"
+
+app = FastAPI(
+    title="Task Agent",
+    lifespan=lifespan,
+    dependencies=[Depends(verifier_cle)],
+    docs_url=None if EN_PRODUCTION else "/docs",
+    redoc_url=None if EN_PRODUCTION else "/redoc",
+    openapi_url=None if EN_PRODUCTION else "/openapi.json",
+)
 
 @app.get("/")
 async def accueil():

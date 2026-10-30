@@ -55,3 +55,11 @@ def test_supprimer_tache(client):
 
     lecture = client.get(f"/taches/{tache_id}")
     assert lecture.status_code == 404
+
+def test_refuse_sans_cle(client):
+    # On retire la clé des en-têtes du client pour cette requête.
+    client.headers.pop("X-Api-Key")
+
+    reponse = client.get("/taches")
+
+    assert reponse.status_code == 401

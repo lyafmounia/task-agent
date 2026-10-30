@@ -24,3 +24,10 @@ COPY main.py .
 # production : pas de rechargement automatique, et il écoute sur toutes
 # les adresses réseau du conteneur, pas seulement sur 127.0.0.1.
 CMD ["fastapi", "run", "main.py", "--port", "8000"]
+
+# Créer un utilisateur sans privilèges, nommé "appuser"
+# --create-home lui crée un dossier personnel, que certains outils utilisent
+RUN useradd --create-home appuser
+
+# Exécuter l'API avec cet utilisateur plutôt qu'avec "root"
+USER appuser
